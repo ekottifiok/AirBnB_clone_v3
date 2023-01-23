@@ -1,11 +1,13 @@
 #!/usr/bin/python3
 """Place API"""
 from api.v1.views import app_views
-from flask import jsonify, request
+from flask import jsonify, request, abort
 from models import storage
 from models.city import City
 from models.place import Place
 from models.user import User
+from models.state import State
+from models.amenity import Amenity
 
 
 @app_views.route("/cities/<string:city_id>/places", strict_slashes=False,
@@ -106,3 +108,50 @@ def update_place(place_id):
             return jsonify(place.to_dict()), 200
         return jsonify({'error': 'Not a JSON'}), 400
     return jsonify({'error': 'Not found'}), 404
+
+
+@app_views.route("/places_search", strict_slashes=False,
+                 methods=['POST'])
+def places_search():
+    """Retrieves all Place objects depending of the JSON
+    in the body of the request"""
+
+    if not request.is_json:
+        abort(400, description="Not a JSON")
+
+    data = request.get_json()
+    states = data.get("states", [])
+    cities = data.get("cities", [])
+    amenities = data.get("amenities", [])
+    places = []
+    if len(states) == 0 and len(cities) == 0 and\
+       len(amenities) == 0:
+        places = list(storage.all(Place).values())
+
+    if len(states) > 0:
+        for id in states:
+            state = storage.get(State, id)
+            if state is not None:
+                for city in state.cities:
+                    places.extend(city.places)
+                    if city.id in cities:
+                        cities.remove(city.id)
+
+    if len(cities) > 0:
+        for id in cities:
+            city = storage.get(City, id)
+            if city is not None:
+                places.extend(city.places)
+
+    if len(amenities) > 0:
+        for place in places:
+            if len(amenities) != len(place.amenities):
+                places.remove(place)
+                continue
+            for amenity in place.amenities:
+                if amenity.id not in amenities:
+                    places.remove(place)
+                    break
+
+    places = [place.to_dict() for place in places]
+    return jsonify(places)
