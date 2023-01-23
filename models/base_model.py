@@ -71,7 +71,7 @@ class BaseModel:
 
         if "password" in new_dict and\
            models.storage_t == "db":
-           del new_dict["password"]
+            del new_dict["password"]
 
         return new_dict
 
